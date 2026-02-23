@@ -1,0 +1,107 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-workspace
+*.sublime-project
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# OS Files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Logs
+logs/
+*.log
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory
+coverage/
+.nyc_output/
+
+# Temp and build directories
+dist/
+build/
+tmp/
+temp/
+*.tsbuildinfo
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv environment variables file(s)
+.env*.local
+
+# Mac files
+.DS_Store
+
+# Misc
+.cache/
+.parcel-cache
+.next
+out
+
+# Testing
+test-results/
+junit.xml
+
+# Postman (if you want to exclude workspace but keep collections)
+Postman/workspaces/
+postman_environment.json
+
+# Optional REPL history
+.node_repl_history
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Other
+.cache
+*.rar
+*.jar
