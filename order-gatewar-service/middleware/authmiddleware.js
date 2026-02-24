@@ -1,12 +1,11 @@
 const jwt = require('jsonwebtoken');
-const blacklisttokenModel = require('../models/blacklistToken.model');
-const redisClient = require('../db/redis');
-const User = require('../models/user.model');
+const redisClient = require('../config/redis');
 
 module.exports.auth = async (req, res, next) => {
     try {
         // Get token from cookies or Authorization header
         let token = req.cookies?.token;
+        
         // If not in cookies, check Authorization header
         if (!token) {
             const authHeader = req.headers.authorization;
@@ -28,25 +27,11 @@ module.exports.auth = async (req, res, next) => {
             return res.status(401).json({ message: 'Token has been blacklisted' });
         }
         
-        // Check if token is blacklisted in MongoDB (fallback)
-        const isBlacklistedMongo = await blacklisttokenModel.find({ token });
-        if (isBlacklistedMongo.length) {
-            return res.status(401).json({ message: 'Token has been blacklisted' });
-        }
-        
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // Fetch full user document from database using the user ID from JWT
-        const user = await User.findById(decoded.id);
-        if (!user) {
-            return res.status(401).json({ 
-                message: 'User not found' 
-            });
-        }
-        
-        // Attach full user document to request object
-        req.user = user;
+        // Attach decoded user info to request object
+        req.user = decoded;
         
         // Continue to next middleware/route handler
         next();
