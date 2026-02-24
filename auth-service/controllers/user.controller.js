@@ -1,8 +1,10 @@
 const User = require('../models/user.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const BlacklistToken = require('../models/blacklistToken.model');
-const { incSuccessfulLogin, incFailedLogin } = require('../middleware/metrics');
+const redisClient = require('../db/redis');
+const { incSuccessfulLogin, incFailedLogin, getMetrics } = require('../middleware/metrics');
 const register = async (req,res) => {
     try {
         const { name, id, password } = req.body;
@@ -82,9 +84,25 @@ const logout = async (req, res) => {
     try {
         // read token first (cookie-parser must be enabled in app)
         const token = req.cookies?.token;
-        if (token) {
-            await BlacklistToken.create({ token });
+        
+        if (!token) {
+            return res.status(400).json({ message: "No token provided" });
         }
+        
+        // Verify token to get expiration time
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const now = Math.floor(Date.now() / 1000);
+        const timeLeft = decoded.exp - now;
+
+        // Add to MongoDB blacklist for persistence
+        await BlacklistToken.create({ token });
+
+        // Add to Redis with TTL (Time To Live)
+        // This means Redis will automatically delete it once the token expires
+        if (timeLeft > 0) {
+            await redisClient.setEx(`blacklist_${token}`, timeLeft, 'true');
+        }
+
         res.clearCookie('token');
         res.status(200).json({ message: "Logout successful" });
     } catch (error) {
