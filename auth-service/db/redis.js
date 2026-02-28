@@ -1,20 +1,18 @@
 const { createClient } = require('redis');
 
+const redisUrl = process.env.REDIS_URL ||
+    `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
+
 const redisClient = createClient({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
+    url: redisUrl,
     password: process.env.REDIS_PASSWORD || undefined,
-    retry_strategy: (options) => {
-        if (options.error && options.error.code === 'ECONNREFUSED') {
-            console.error('Redis connection refused');
+    socket: {
+        reconnectStrategy: (retries) => {
+            if (retries > 10) {
+                return new Error('Retry attempts exhausted');
+            }
+            return Math.min(retries * 100, 3000);
         }
-        if (options.total_retry_time > 1000 * 60 * 60) {
-            return new Error('Retry time exhausted');
-        }
-        if (options.attempt > 10) {
-            return undefined;
-        }
-        return Math.min(options.attempt * 100, 3000);
     }
 });
 

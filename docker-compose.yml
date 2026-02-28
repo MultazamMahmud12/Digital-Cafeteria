@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongodb:
     image: mongo:latest
@@ -29,22 +27,32 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   identity-service:
     build:
       context: ./auth-service
       dockerfile: Dockerfile
     container_name: identity-service
     ports:
-      - "3001:3001"
+      - "8081:3001"
+    env_file:
+      - ./auth-service/.env
     environment:
-      JWT_SECRET: ${JWT_SECRET:-user_secret}
-      MONGO_URL: mongodb://mongodb:27017/cafeteria
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
     depends_on:
-      mongodb:
-        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -55,16 +63,100 @@ services:
       dockerfile: Dockerfile
     container_name: gateway-service
     ports:
-      - "3000:3000"
+      - "8090:3000"
+    env_file:
+      - ./order-gatewar-service/.env
     environment:
-      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
-      STOCK_SERVICE_URL: http://localhost:3002
+      STOCK_SERVICE_URL: http://stock-service:8082
+      IDENTITY_SERVICE_URL: http://identity-service:3001
     depends_on:
       redis:
         condition: service_healthy
+      stock-service:
+        condition: service_started
+    restart: unless-stopped
+
+  stock-service:
+    build:
+      context: ./stock-service
+      dockerfile: Dockerfile
+    container_name: stock-service
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: 8082
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: orders.x
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  kitchen-service:
+    build:
+      context: ./kitchen-service
+      dockerfile: Dockerfile
+    container_name: kitchen-service
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: 8083
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: orders.x
+      RABBITMQ_KITCHEN_QUEUE: kitchen.q
+      ENABLE_CHAOS: "false"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "8084:8084"
+    environment:
+      PORT: 8084
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: orders.x
+      RABBITMQ_NOTIFY_QUEUE: notify.q
+      ENABLE_CHAOS: "false"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "8085:8085"
+    environment:
+      PORT: 8085
+      PUBLIC_IDENTITY_URL: http://localhost:8081
+      PUBLIC_GATEWAY_URL: http://localhost:8090
+      PUBLIC_STOCK_URL: http://localhost:8082
+      PUBLIC_KITCHEN_URL: http://localhost:8083
+      PUBLIC_NOTIFICATION_URL: http://localhost:8084
+      PUBLIC_NOTIFICATION_WS_URL: ws://localhost:8084/ws
+    depends_on:
+      identity-service:
+        condition: service_started
+      gateway-service:
+        condition: service_started
+      stock-service:
+        condition: service_started
+      kitchen-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

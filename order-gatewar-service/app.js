@@ -3,19 +3,26 @@ const expressProxy = require('express-http-proxy');
 const app = express();
 const dotenv = require('dotenv');
 const redisClient = require('./config/redis');
+const cors = require('cors');
 const orderRoutes = require('./routes/orderRoutes');
 
 // observability
-const { metricsMiddleware, getMetrics } = require('./middleware/metrics');
+const { metricsMiddleware, getMetrics, getMetricsJson } = require('./middleware/metrics');
 
 
 dotenv.config();
+
+const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
 
 // redisClient.connect() is already invoked in config/redis.js when the client
 // is created. Calling it again causes a "Socket already opened" error, so we
 // rely on that single connection attempt here.
 
 app.use(express.json());
+app.use(cors({
+    origin: true,
+    credentials: true
+}));
 
 // health check
 app.get('/health', async (req, res) => {
@@ -32,12 +39,14 @@ app.get('/health', async (req, res) => {
 
 // metrics endpoint
 app.get('/metrics', getMetrics);
+app.get('/metrics/json', getMetricsJson);
 
 // instrumentation middleware must come before other routes to capture everything
 app.use(metricsMiddleware);
 
 // Routes
-app.use('/user', expressProxy('http://localhost:3001'));
+app.use('/user', expressProxy(identityServiceUrl));
 app.use('/order', orderRoutes);
+app.use('/orders', orderRoutes);
 
 app.listen(3000, () => { console.log("Gateway is running on port 3000") })
