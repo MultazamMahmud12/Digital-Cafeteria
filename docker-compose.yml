@@ -88,10 +88,16 @@ services:
       - "8082:8082"
     environment:
       PORT: 8082
+      MONGO_URI: mongodb://mongodb:27017/digital_cafeteria_stock
+      REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://rabbitmq:5672
       RABBITMQ_EXCHANGE: orders.x
       ENABLE_CHAOS: "true"
     depends_on:
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
