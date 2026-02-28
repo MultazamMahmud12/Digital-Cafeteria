@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # MongoDB Replica Set - Primary
+  mongo1:
+    image: mongo:7
+    container_name: stock-mongo1
+    command: [ "mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017" ]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo1-data:/data/db
+    networks:
+      - stock-network
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo1:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      retries: 30
+
+  # MongoDB Replica Set Initializer
+  mongo-init-replica:
+    image: mongo:7
+    container_name: stock-mongo-init
+    depends_on:
+      mongo1:
+        condition: service_healthy
+    entrypoint: >
+      mongosh --host mongo1:27017 --eval '
+        try {
+          rs.status();
+          print("Replica set already initialized");
+        } catch (e) {
+          rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo1:27017" }] });
+          print("Replica set initialized");
+        }
+      '
+    networks:
+      - stock-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: stock-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - stock-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Stock Service
+  stock-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-service
+    ports:
+      - "4002:4002"
+    environment:
+      - PORT=4002
+      - MONGO_URI=mongodb://mongo1:27017/stock-service?replicaSet=rs0
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+    depends_on:
+      mongo1:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock-network
+    restart: unless-stopped
+
+volumes:
+  mongo1-data:
+  redis-data:
+
+
+networks:
+  stock-network:
+    driver: bridge

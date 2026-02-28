@@ -1,0 +1,44 @@
+name: Stock Service CI
+
+on:
+  push:
+    branches: [ main, master, feature/* ]
+    paths:
+      - 'stock-service/**'
+      - '.github/workflows/stock-service-ci.yml'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'stock-service/**'
+
+jobs:
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./stock-service
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: './stock-service/package-lock.json'
+
+    # Note: mongodb-memory-server automatically downloads the MongoDB binaries it needs,
+    # so we don't need a separate MongoDB service container for the tests!
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: TypeScript Compiler Check
+      run: npx tsc --noEmit
+
+    - name: Run Tests
+      run: npm run test
