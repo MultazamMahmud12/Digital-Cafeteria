@@ -14,7 +14,8 @@ const placeOrder = async (req, res) => {
         const userId = req.user.id; // From JWT token
 
         // Validate input
-        if (!itemId || !quantity) {
+        // note: quantity 0 is not `== null`, but we still want to reject non-positive
+        if (!itemId || quantity == null) {
             return res.status(400).json({ 
                 message: "itemId and quantity are required" 
             });

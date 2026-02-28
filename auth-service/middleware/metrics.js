@@ -1,40 +1,41 @@
 const onHeaders = require('on-headers');
+const client = require('prom-client');
 
-let totalRequests = 0;
-let successfulLogins = 0;
-let failedLogins = 0;
-let totalResponseTime = 0; // in ms
+// collect default Node.js/HTTP metrics (gc, heap, cpu, etc.)
+client.collectDefaultMetrics();
+
+// custom metrics
+const httpRequestDuration = new client.Histogram({
+  name: 'auth_http_request_duration_ms',
+  help: 'HTTP request duration in ms',
+  buckets: [50, 100, 200, 500, 1000, 2000]
+});
+const loginSuccess = new client.Counter({
+  name: 'auth_login_success_total',
+  help: 'Total number of successful login attempts'
+});
+const loginFailure = new client.Counter({
+  name: 'auth_login_failure_total',
+  help: 'Total number of failed login attempts'
+});
 
 function metricsMiddleware(req, res, next) {
-  const start = process.hrtime();
-
-  // ensure we measure after headers are written
-  onHeaders(res, function () {
-    const diff = process.hrtime(start);
-    const durationMs = diff[0] * 1e3 + diff[1] / 1e6;
-    totalRequests += 1;
-    totalResponseTime += durationMs;
-  });
-
+  const end = httpRequestDuration.startTimer();
+  onHeaders(res, () => end());
   next();
 }
 
 function incSuccessfulLogin() {
-  successfulLogins += 1;
+  loginSuccess.inc();
 }
 
 function incFailedLogin() {
-  failedLogins += 1;
+  loginFailure.inc();
 }
 
-function getMetrics() {
-  const averageResponseTime = totalRequests === 0 ? 0 : totalResponseTime / totalRequests;
-  return {
-    totalRequests,
-    successfulLogins,
-    failedLogins,
-    averageResponseTime
-  };
+function getMetrics(req, res) {
+  res.set('Content-Type', client.register.contentType);
+  res.end(client.register.metrics());
 }
 
 module.exports = {
