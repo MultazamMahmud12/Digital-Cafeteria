@@ -6,6 +6,7 @@ import { FoodItem } from '../src/models/FoodItem';
 import { ProcessedOrder } from '../src/models/ProcessedOrder';
 import { stockService } from '../src/services/stockService';
 import { metricsStore } from '../src/metrics/metricsStore';
+import { ValidationError } from '../src/middleware/errorHandler';
 
 // --- Mock Redis before importing modules that use it ---
 jest.mock('../src/config/redis', () => {
@@ -237,6 +238,31 @@ describe('Stock Service', () => {
             // No processed order should exist
             const processed = await ProcessedOrder.findOne({ orderId: 'order-rollback-1' });
             expect(processed).toBeNull();
+        });
+    });
+
+    // ─── Test 6: Get Stock ───
+    describe('Get Stock', () => {
+        it('should retrieve available stock for a valid item ID', async () => {
+            const item = await FoodItem.create({ name: 'Available Item', stock: 42 });
+
+            const result = await stockService.getStock(item._id.toString());
+
+            expect(result.itemId).toBe(item._id.toString());
+            expect(result.available).toBe(42);
+        });
+
+        it('should throw ValidationError for an invalid item ID format', async () => {
+            await expect(stockService.getStock('invalid-id-format')).rejects.toThrow(
+                ValidationError
+            );
+        });
+
+        it('should throw ValidationError if item is not found', async () => {
+            const nonExistentId = new mongoose.Types.ObjectId().toString();
+            await expect(stockService.getStock(nonExistentId)).rejects.toThrow(
+                ValidationError
+            );
         });
     });
 });

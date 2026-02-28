@@ -9,6 +9,7 @@ import {
     InsufficientStockError,
     DuplicateOrderError,
     ServiceUnavailableError,
+    ValidationError,
 } from '../middleware/errorHandler';
 
 export interface DeductionItem {
@@ -167,5 +168,23 @@ export const stockService = {
         }
 
         return result;
+    },
+
+    async getStock(itemId: string): Promise<{ itemId: string; available: number }> {
+        if (!mongoose.Types.ObjectId.isValid(itemId)) {
+            throw new ValidationError('Invalid itemId format');
+        }
+
+        const stock = await stockRepository.getStock(itemId);
+
+        // If stock is null, the item doesn't exist
+        if (stock === null) {
+            throw new ValidationError(`Item with ID ${itemId} not found`);
+        }
+
+        return {
+            itemId,
+            available: stock,
+        };
     },
 };

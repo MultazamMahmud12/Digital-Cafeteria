@@ -23,4 +23,23 @@ export const stockController = {
             next(error);
         }
     },
+
+    async getStock(
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ): Promise<void> {
+        try {
+            const { itemId } = req.params;
+
+            const result = await stockService.getStock(itemId);
+
+            res.status(200).json({
+                success: true,
+                data: result,
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
 };
