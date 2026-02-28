@@ -29,7 +29,7 @@ jobs:
       with:
         node-version: '20'
         cache: 'npm'
-        cache-dependency-path: './stock-service/package-lock.json'
+        cache-dependency-path: 'stock-service/package-lock.json'
 
     # Note: mongodb-memory-server automatically downloads the MongoDB binaries it needs,
     # so we don't need a separate MongoDB service container for the tests!
