@@ -41,20 +41,20 @@ const register = async (req,res) => {
 
 const login = async (req,res) => {
     try {
-        const { email, password } = req.body;
+        const { id, password } = req.body;
         
-        // Check if user exists
-        const userExists = await User.findOne({ email });
+        // Check if user exists by student ID
+        const userExists = await User.findOne({ id });
         if (!userExists) {
             incFailedLogin();
-            return res.status(401).json({ message: "Invalid email or password" });
+            return res.status(401).json({ message: "Invalid ID or password" });
         }
         
         // Compare password
         const isPasswordValid = await bcrypt.compare(password, userExists.password);
         if (!isPasswordValid) {
             incFailedLogin();
-            return res.status(401).json({ message: "Invalid email or password" });
+            return res.status(401).json({ message: "Invalid ID or password" });
         }
         
         // Generate JWT token
@@ -69,8 +69,7 @@ const login = async (req,res) => {
             token,
             user:{
                 id : userExists._id,
-                name : userExists.name,
-                email : userExists.email
+                name : userExists.name
             }
         });
         
@@ -143,15 +142,10 @@ const health = async (req, res) => {
     
 }
 
-const metric = async (req, res) => {
-    try {
-        const metrics = getMetrics();
-        res.status(200).json(metrics);
-        
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}
+// `/metrics` endpoint simply delegates to the Prometheus module
+const metric = (req, res) => {
+    getMetrics(req, res);
+};
 module.exports = {
     register,
     login,

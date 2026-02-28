@@ -1,8 +1,11 @@
 const { createClient } = require('redis');
 
+// prefer a single connection URL so that Docker DNS names work reliably
+const redisUrl = process.env.REDIS_URL ||
+                `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
+
 const redisClient = createClient({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
+    url: redisUrl,
     password: process.env.REDIS_PASSWORD || undefined,
     socket: {
         reconnectStrategy: (retries) => {
