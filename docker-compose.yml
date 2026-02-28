@@ -90,6 +90,7 @@ services:
       PORT: 8082
       RABBITMQ_URL: amqp://rabbitmq:5672
       RABBITMQ_EXCHANGE: orders.x
+      ENABLE_CHAOS: "true"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -107,7 +108,7 @@ services:
       RABBITMQ_URL: amqp://rabbitmq:5672
       RABBITMQ_EXCHANGE: orders.x
       RABBITMQ_KITCHEN_QUEUE: kitchen.q
-      ENABLE_CHAOS: "false"
+      ENABLE_CHAOS: "true"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -125,7 +126,7 @@ services:
       RABBITMQ_URL: amqp://rabbitmq:5672
       RABBITMQ_EXCHANGE: orders.x
       RABBITMQ_NOTIFY_QUEUE: notify.q
-      ENABLE_CHAOS: "false"
+      ENABLE_CHAOS: "true"
     depends_on:
       rabbitmq:
         condition: service_healthy

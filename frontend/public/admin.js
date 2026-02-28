@@ -26,11 +26,46 @@ function createServiceCard(service) {
 
   const chaosButton = document.createElement('button');
   chaosButton.textContent = 'Chaos Kill';
+  const chaosSupported = !['Identity', 'Gateway'].includes(service.name);
+  if (!chaosSupported) {
+    chaosButton.disabled = true;
+    chaosButton.title = 'Chaos Kill is not implemented for this service';
+  }
   chaosButton.addEventListener('click', async () => {
+    if (!chaosSupported) {
+      return;
+    }
+
+    chaosButton.disabled = true;
+    const originalText = chaosButton.textContent;
+    chaosButton.textContent = 'Killing...';
+
     try {
-      await fetch(`${service.url}/chaos/kill`, { method: 'POST' });
+      const response = await fetch(`${service.url}/chaos/kill`, { method: 'POST' });
+      if (!response.ok) {
+        let message = `Chaos kill failed (${response.status})`;
+        try {
+          const body = await response.json();
+          if (body && body.error) {
+            message = body.error;
+          }
+        } catch (error) {
+          // ignore parse errors
+        }
+        healthDot.className = 'dot dot-red';
+        healthText.textContent = message;
+      } else {
+        healthDot.className = 'dot dot-red';
+        healthText.textContent = 'Chaos kill triggered';
+      }
     } catch (error) {
-      // ignore
+      healthDot.className = 'dot dot-red';
+      healthText.textContent = 'Chaos kill request failed';
+    } finally {
+      chaosButton.textContent = originalText;
+      setTimeout(() => {
+        chaosButton.disabled = false;
+      }, 1500);
     }
   });
 
