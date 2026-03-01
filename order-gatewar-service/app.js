@@ -3,6 +3,7 @@ const expressProxy = require('express-http-proxy');
 const app = express();
 const dotenv = require('dotenv');
 const redisClient = require('./config/redis');
+const rabbitmq = require('./config/rabbitmq');
 const cors = require('cors');
 const orderRoutes = require('./routes/orderRoutes');
 
@@ -17,6 +18,9 @@ const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost
 // redisClient.connect() is already invoked in config/redis.js when the client
 // is created. Calling it again causes a "Socket already opened" error, so we
 // rely on that single connection attempt here.
+
+// Connect to RabbitMQ
+rabbitmq.connect();
 
 app.use(express.json());
 app.use(cors({

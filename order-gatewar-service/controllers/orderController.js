@@ -1,11 +1,13 @@
 const axios = require('axios');
 const redisClient = require('../config/redis');
+const rabbitmq = require('../config/rabbitmq');
 
 /**
  * STEP 1: Identity Layer (JWT Check + Blacklist) - Handled by auth middleware
  * STEP 2: Binary Stock Gate (Redis Check) - Fast Reject if OUT_OF_STOCK
  * STEP 3: Handover (Axios Call to Stock Service) - Get real inventory confirmation
- * STEP 4: Response Loop (Handle success/error & update cache)
+ * STEP 4: Publish to RabbitMQ for Kitchen Processing
+ * STEP 5: Response Loop (Handle success/error & update cache)
  */
 
 const placeOrder = async (req, res) => {
@@ -20,6 +22,7 @@ const placeOrder = async (req, res) => {
         }
 
         const userId = req.user.id || req.user._id; // From JWT token
+        const originalItemId = itemId; // Preserve original item name for cache key
 
         // Validate input
         // note: quantity 0 is not `== null`, but we still want to reject non-positive
@@ -40,19 +43,19 @@ const placeOrder = async (req, res) => {
         // ============================================
         // STEP 2: Fast Reject - Check Redis Stock Gate
         // ============================================
-        const stockStatusKey = `stock_status_${itemId}`;
+        const stockStatusKey = `stock_status_${originalItemId}`;
         let stockStatus = null;
         
         try {
             stockStatus = await redisClient.get(stockStatusKey);
-            console.log(`[Redis] Stock status for item ${itemId}: ${stockStatus || 'NOT_CACHED'}`);
+            console.log(`[Redis] Stock status for item ${originalItemId}: ${stockStatus || 'NOT_CACHED'}`);
         } catch (redisError) {
             console.log(`[Redis] Cache unavailable: ${redisError.message}`);
             // Continue without cache hit - will check with Stock Service
         }
 
         if (stockStatus === 'OUT_OF_STOCK') {
-            console.log(`[Fast Reject] Item ${itemId} is OUT_OF_STOCK in cache`);
+            console.log(`[Fast Reject] Item ${originalItemId} is OUT_OF_STOCK in cache`);
             return res.status(400).json({ 
                 message: "Item is out of stock",
                 status: "OUT_OF_STOCK"
@@ -77,18 +80,29 @@ const placeOrder = async (req, res) => {
         console.log(`[Success] Order placed. Response:`, orderResponse.data);
 
         // ============================================
-        // STEP 4: Response Loop - Update cache & return
+        // STEP 4: Publish to RabbitMQ for Kitchen Processing
+        // ============================================
+        const orderId = orderResponse.data.orderId;
+        await rabbitmq.publishOrder(orderId, {
+            userId,
+            itemId: originalItemId,
+            quantity,
+            timestamp: new Date().toISOString()
+        });
+
+        // ============================================
+        // STEP 5: Response Loop - Update cache & return
         // ============================================
         // If Stock Service confirms order, update Redis to reflect availability
         if (orderResponse.data.remainingStock !== undefined) {
             try {
                 if (orderResponse.data.remainingStock <= 0) {
                     await redisClient.setEx(stockStatusKey, 3600, 'OUT_OF_STOCK');
-                    console.log(`[Cache Update] Item ${itemId} marked OUT_OF_STOCK`);
+                    console.log(`[Cache Update] Item ${originalItemId} marked OUT_OF_STOCK`);
                 } else {
                     // Keep availability status (optional: store remaining qty too)
                     await redisClient.setEx(stockStatusKey, 3600, 'AVAILABLE');
-                    console.log(`[Cache Update] Item ${itemId} still AVAILABLE`);
+                    console.log(`[Cache Update] Item ${originalItemId} still AVAILABLE`);
                 }
             } catch (redisError) {
                 console.log(`[Cache Update] Redis unavailable, skipping cache update: ${redisError.message}`);
@@ -98,7 +112,7 @@ const placeOrder = async (req, res) => {
         res.status(201).json({
             message: "Order placed successfully",
             orderId: orderResponse.data.orderId,
-            itemId,
+            itemId: originalItemId,
             quantity,
             remainingStock: orderResponse.data.remainingStock
         });

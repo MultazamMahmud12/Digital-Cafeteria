@@ -64,7 +64,7 @@ export default function AdminDashboard() {
     }
 
     loadHealth()
-    const interval = setInterval(checkAllHealth, 2000) // Auto-refresh every 2s for faster restart detection
+    const interval = setInterval(checkAllHealth, 500) // Auto-refresh every 500ms to catch rapid restarts
     return () => clearInterval(interval)
   }, [config])
 

@@ -32,4 +32,17 @@ export const stockRepository = {
         const item = await FoodItem.findById(itemId).select('stock').lean();
         return item ? item.stock : null;
     },
+
+    /**
+     * Find item by name (case-insensitive).
+     */
+    async findByName(name: string): Promise<{ _id: string; name: string; stock: number } | null> {
+        const item = await FoodItem.findOne({ name: new RegExp(`^${name}$`, 'i') }).lean();
+        if (!item) return null;
+        return {
+            _id: item._id.toString(),
+            name: item.name,
+            stock: item.stock,
+        };
+    },
 };

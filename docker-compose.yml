@@ -2,10 +2,12 @@ services:
   mongodb:
     image: mongo:latest
     container_name: mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+      - ./mongo-init.sh:/docker-entrypoint-initdb.d/mongo-init.sh:ro
     environment:
       MONGO_INITDB_DATABASE: cafeteria
     healthcheck:
@@ -76,8 +78,12 @@ services:
       REDIS_PASSWORD: ""
       STOCK_SERVICE_URL: http://stock-service:8082
       IDENTITY_SERVICE_URL: http://identity-service:3001
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: orders.x
     depends_on:
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       stock-service:
         condition: service_started
