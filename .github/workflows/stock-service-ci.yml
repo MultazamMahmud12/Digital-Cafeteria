@@ -2,7 +2,7 @@ name: Stock Service CI
 
 on:
   push:
-    branches: [ main, master, feature/* ]
+    branches: [ main, master, develop, feature/* ]
     paths:
       - 'stock-service/**'
       - '.github/workflows/stock-service-ci.yml'
