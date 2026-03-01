@@ -49,12 +49,16 @@ services:
     env_file:
       - ./auth-service/.env
     environment:
+      MONGO_URI: mongodb://mongodb:27017/identity
+      MONGO_URL: mongodb://mongodb:27017/identity
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
     depends_on:
       redis:
         condition: service_healthy
+      mongodb:
+        condition: service_started
     restart: unless-stopped
 
   gateway-service:

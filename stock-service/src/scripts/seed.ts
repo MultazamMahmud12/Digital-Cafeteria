@@ -13,7 +13,9 @@ const foodItems = [
 
 const seed = async (): Promise<void> => {
     try {
-        await mongoose.connect(config.mongoUri);
+        // For local development, connect without replica set
+        const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/stock-service';
+        await mongoose.connect(mongoUri);
         logger.info('Connected to MongoDB for seeding');
 
         // Clear existing items
