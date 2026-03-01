@@ -41,7 +41,8 @@ const register = async (req,res) => {
 
 const login = async (req,res) => {
     try {
-        const { id, password } = req.body;
+        const id = req.body.id || req.body.studentId;
+        const { password } = req.body;
         
         // Check if user exists by student ID
         const userExists = await User.findOne({ id });

@@ -7,6 +7,9 @@ const orderController = require('../controllers/orderController');
  * Order Gateway Routes
  */
 
+// Frontend-compatible route
+router.post('/', auth, orderController.placeOrder);
+
 // Place a new order (requires authentication)
 router.post('/place', auth, orderController.placeOrder);
 

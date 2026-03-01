@@ -10,8 +10,16 @@ const redisClient = require('../config/redis');
 
 const placeOrder = async (req, res) => {
     try {
-        const { itemId, quantity } = req.body;
-        const userId = req.user.id; // From JWT token
+        let itemId = req.body.itemId;
+        let quantity = req.body.quantity;
+
+        if ((!itemId || quantity == null) && Array.isArray(req.body.items) && req.body.items.length > 0) {
+            const firstItem = req.body.items[0] || {};
+            itemId = firstItem.itemId || firstItem.sku;
+            quantity = firstItem.quantity ?? firstItem.qty;
+        }
+
+        const userId = req.user.id || req.user._id; // From JWT token
 
         // Validate input
         // note: quantity 0 is not `== null`, but we still want to reject non-positive
