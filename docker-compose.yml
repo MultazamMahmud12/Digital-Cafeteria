@@ -60,7 +60,6 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_started
-    restart: unless-stopped
 
   gateway-service:
     build:
@@ -85,7 +84,6 @@ services:
         condition: service_healthy
       stock-service:
         condition: service_started
-    restart: unless-stopped
 
   stock-service:
     build:
@@ -108,7 +106,6 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
 
   kitchen-service:
     build:
@@ -126,7 +123,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
 
   notification-service:
     build:
@@ -144,7 +140,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
 
   frontend:
     build:
@@ -172,7 +167,6 @@ services:
         condition: service_started
       notification-service:
         condition: service_started
-    restart: unless-stopped
 
 volumes:
   mongodb_data:

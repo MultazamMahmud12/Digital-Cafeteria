@@ -109,6 +109,7 @@ async function setupRabbit() {
         try {
           parsed = JSON.parse(msg.content.toString('utf8'));
         } catch (error) {
+          console.error(`[${nowIso()}] ❌ Failed to parse message`);
           metrics.jobs_failed_total += 1;
           channel.ack(msg);
           return;
@@ -116,20 +117,30 @@ async function setupRabbit() {
 
         const orderId = parsed && parsed.orderId;
         if (typeof orderId !== 'string' || orderId.trim() === '') {
+          console.error(`[${nowIso()}] ❌ Invalid orderId in message`);
           metrics.jobs_failed_total += 1;
           channel.ack(msg);
           return;
         }
 
         if (processedOrderIds.has(orderId)) {
+          console.log(`[${nowIso()}] ⚠️  Order ${orderId} already processed (idempotent skip)`);
           channel.ack(msg);
           return;
         }
 
+        console.log(`[${nowIso()}] 📥 Received order ${orderId} from queue`);
+        
         processedOrderIds.add(orderId);
 
+        console.log(`[${nowIso()}] 👨‍🍳 Order ${orderId} moved to kitchen (status: IN_KITCHEN)`);
         publishOrderStatus(orderId, 'IN_KITCHEN');
-        await sleep(randomDelayMs());
+        
+        const cookingTime = randomDelayMs();
+        console.log(`[${nowIso()}] 🔥 Cooking order ${orderId}... (${cookingTime}ms)`);
+        await sleep(cookingTime);
+        
+        console.log(`[${nowIso()}] ✅ Order ${orderId} is ready for pickup!`);
         publishOrderStatus(orderId, 'READY');
 
         metrics.jobs_processed_total += 1;
@@ -137,6 +148,7 @@ async function setupRabbit() {
 
         channel.ack(msg);
       } catch (error) {
+        console.error(`[${nowIso()}] ❌ Error processing order:`, error.message);
         metrics.jobs_failed_total += 1;
         if (channel) {
           channel.ack(msg);
@@ -170,10 +182,11 @@ function scheduleReconnect() {
 async function connectRabbitWithRetry() {
   try {
     await setupRabbit();
-    console.log('Connected to RabbitMQ');
+    console.log(`[${nowIso()}] ✅ Connected to RabbitMQ successfully`);
+    console.log(`[${nowIso()}] 🎧 Listening for orders on queue: ${RABBITMQ_KITCHEN_QUEUE}`);
   } catch (error) {
     rabbitConnected = false;
-    console.error('RabbitMQ connect failed:', error.message);
+    console.error(`[${nowIso()}] ❌ RabbitMQ connect failed:`, error.message);
     scheduleReconnect();
   }
 }

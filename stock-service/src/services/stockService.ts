@@ -78,6 +78,12 @@ export const stockService = {
         }
 
         // Step 3: Execute transactional deduction
+        logger.info(`📦 Processing stock deduction for order ${orderId}`, {
+            orderId,
+            itemCount: items.length,
+            items: items.map(i => ({ itemId: i.itemId, quantity: i.quantity })),
+        });
+
         const session = await mongoose.startSession();
         let result: DeductionResponse;
         let insufficientStockError: InsufficientStockError | null = null;
@@ -93,6 +99,11 @@ export const stockService = {
                     );
 
                     if (!success) {
+                        logger.warn(`❌ Insufficient stock for item ${item.itemId}`, {
+                            orderId,
+                            itemId: item.itemId,
+                            requestedQuantity: item.quantity,
+                        });
                         // Store the error before throwing so we can re-throw it properly
                         // session.withTransaction() may wrap the error
                         insufficientStockError = new InsufficientStockError(
@@ -100,6 +111,15 @@ export const stockService = {
                         );
                         throw insufficientStockError;
                     }
+
+                    // Get remaining stock after deduction
+                    const remainingStock = await stockRepository.getStock(item.itemId);
+                    logger.info(`✅ Stock deducted for item ${item.itemId}`, {
+                        orderId,
+                        itemId: item.itemId,
+                        deductedQuantity: item.quantity,
+                        remainingStock: remainingStock ?? 0,
+                    });
                 }
 
                 // All deductions succeeded — record processed order within the same transaction
@@ -119,6 +139,12 @@ export const stockService = {
                 message: 'Stock deducted successfully',
                 deductedItems: items,
             };
+
+            logger.info(`✅ Order ${orderId} completed successfully`, {
+                orderId,
+                totalItems: items.length,
+                status: 'success',
+            });
 
             metricsStore.incrementSuccessful();
         } catch (error) {
