@@ -1,0 +1,45 @@
+name: Gateway Service CI (Order Validation)
+
+on:
+  push:
+    branches: [ main, master, develop, feature/* ]
+    paths:
+      - 'order-gatewar-service/**'
+      - '.github/workflows/gateway-service-ci.yml'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'order-gatewar-service/**'
+
+jobs:
+  test:
+    name: Order Validation Tests
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./order-gatewar-service
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: 'order-gatewar-service/package-lock.json'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run Order Validation Tests
+      run: npm test
+
+    - name: Check test coverage
+      run: |
+        if [ -f coverage/lcov.info ]; then
+          echo "Coverage report generated"
+        fi
+      shell: bash
