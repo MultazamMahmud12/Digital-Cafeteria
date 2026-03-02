@@ -1,0 +1,179 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongo
+    command: [ "--replSet", "rs0", "--bind_ip_all" ]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.sh:/docker-entrypoint-initdb.d/mongo-init.sh:ro
+    environment:
+      MONGO_INITDB_DATABASE: cafeteria
+    healthcheck:
+      test: mongosh --eval 'db.adminCommand("ping")'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  identity-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: identity-service
+    ports:
+      - "8081:3001"
+    environment:
+      JWT_SECRET: user_secret
+      MONGO_URI: mongodb+srv://monazirmohammedminhaz_db_user:tCc9dE3WwrJVGl2k@cluster0.mlj5ojt.mongodb.net/?appName=Cluster0
+      MONGO_URL: mongodb+srv://monazirmohammedminhaz_db_user:tCc9dE3WwrJVGl2k@cluster0.mlj5ojt.mongodb.net/?appName=Cluster0
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    restart: unless-stopped
+
+  gateway-service:
+    build:
+      context: ./order-gatewar-service
+      dockerfile: Dockerfile
+    container_name: gateway-service
+    ports:
+      - "8090:3000"
+    environment:
+      JWT_SECRET: user_secret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      STOCK_SERVICE_URL: http://stock-service:8082
+      IDENTITY_SERVICE_URL: http://identity-service:3001
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: orders.x
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      stock-service:
+        condition: service_started
+    restart: unless-stopped
+
+  stock-service:
+    build:
+      context: ./stock-service
+      dockerfile: Dockerfile
+    container_name: stock-service
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: 8082
+      MONGO_URI: mongodb+srv://monazirmohammedminhaz_db_user:tCc9dE3WwrJVGl2k@cluster0.mlj5ojt.mongodb.net/?appName=Cluster0
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: orders.x
+      ENABLE_CHAOS: "true"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  kitchen-service:
+    build:
+      context: ./kitchen-service
+      dockerfile: Dockerfile
+    container_name: kitchen-service
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: 8083
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: orders.x
+      RABBITMQ_KITCHEN_QUEUE: kitchen.q
+      ENABLE_CHAOS: "true"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "8084:8084"
+    environment:
+      PORT: 8084
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: orders.x
+      RABBITMQ_NOTIFY_QUEUE: notify.q
+      ENABLE_CHAOS: "true"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "8085:8085"
+    environment:
+      PORT: 8085
+      PUBLIC_IDENTITY_URL: http://localhost:8081
+      PUBLIC_GATEWAY_URL: http://localhost:8090
+      PUBLIC_STOCK_URL: http://localhost:8082
+      PUBLIC_KITCHEN_URL: http://localhost:8083
+      PUBLIC_NOTIFICATION_URL: http://localhost:8084
+      PUBLIC_NOTIFICATION_WS_URL: ws://localhost:8084/ws
+    depends_on:
+      identity-service:
+        condition: service_started
+      gateway-service:
+        condition: service_started
+      stock-service:
+        condition: service_started
+      kitchen-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  redis_data:

@@ -1,8 +1,10 @@
 const User = require('../models/user.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const BlacklistToken = require('../models/blacklistToken.model');
-const { incSuccessfulLogin, incFailedLogin } = require('../middleware/metrics');
+const redisClient = require('../db/redis');
+const { incSuccessfulLogin, incFailedLogin, getMetrics } = require('../middleware/metrics');
 const register = async (req,res) => {
     try {
         const { name, id, password } = req.body;
@@ -39,20 +41,21 @@ const register = async (req,res) => {
 
 const login = async (req,res) => {
     try {
-        const { email, password } = req.body;
+        const id = req.body.id || req.body.studentId;
+        const { password } = req.body;
         
-        // Check if user exists
-        const userExists = await User.findOne({ email });
+        // Check if user exists by student ID
+        const userExists = await User.findOne({ id });
         if (!userExists) {
             incFailedLogin();
-            return res.status(401).json({ message: "Invalid email or password" });
+            return res.status(401).json({ message: "Invalid ID or password" });
         }
         
         // Compare password
         const isPasswordValid = await bcrypt.compare(password, userExists.password);
         if (!isPasswordValid) {
             incFailedLogin();
-            return res.status(401).json({ message: "Invalid email or password" });
+            return res.status(401).json({ message: "Invalid ID or password" });
         }
         
         // Generate JWT token
@@ -67,8 +70,7 @@ const login = async (req,res) => {
             token,
             user:{
                 id : userExists._id,
-                name : userExists.name,
-                email : userExists.email
+                name : userExists.name
             }
         });
         
@@ -82,9 +84,25 @@ const logout = async (req, res) => {
     try {
         // read token first (cookie-parser must be enabled in app)
         const token = req.cookies?.token;
-        if (token) {
-            await BlacklistToken.create({ token });
+        
+        if (!token) {
+            return res.status(400).json({ message: "No token provided" });
         }
+        
+        // Verify token to get expiration time
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const now = Math.floor(Date.now() / 1000);
+        const timeLeft = decoded.exp - now;
+
+        // Add to MongoDB blacklist for persistence
+        await BlacklistToken.create({ token });
+
+        // Add to Redis with TTL (Time To Live)
+        // This means Redis will automatically delete it once the token expires
+        if (timeLeft > 0) {
+            await redisClient.setEx(`blacklist_${token}`, timeLeft, 'true');
+        }
+
         res.clearCookie('token');
         res.status(200).json({ message: "Logout successful" });
     } catch (error) {
@@ -125,15 +143,10 @@ const health = async (req, res) => {
     
 }
 
-const metric = async (req, res) => {
-    try {
-        const metrics = getMetrics();
-        res.status(200).json(metrics);
-        
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}
+// `/metrics` endpoint simply delegates to the Prometheus module
+const metric = (req, res) => {
+    getMetrics(req, res);
+};
 module.exports = {
     register,
     login,
