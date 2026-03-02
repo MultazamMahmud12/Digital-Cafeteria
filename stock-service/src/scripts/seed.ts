@@ -4,11 +4,12 @@ import { FoodItem } from '../models/FoodItem';
 import { logger } from '../config/logger';
 
 const foodItems = [
-    { name: 'Chicken Biryani', stock: 150 },
-    { name: 'Beef Burger', stock: 100 },
-    { name: 'Vegetable Pasta', stock: 200 },
-    { name: 'Fish & Chips', stock: 75 },
-    { name: 'Mango Smoothie', stock: 50 },
+    { name: 'biryani_chicken', stock: 150 },
+    { name: 'biryani_veg', stock: 120 },
+    { name: 'kebab_chicken', stock: 100 },
+    { name: 'samosa', stock: 200 },
+    { name: 'chai', stock: 180 },
+    { name: 'juice', stock: 150 },
 ];
 
 const seed = async (): Promise<void> => {

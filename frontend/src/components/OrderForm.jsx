@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ShoppingCart, Loader } from 'lucide-react'
 
 const MENU_ITEMS = [
-  { itemId: 'biryanwith_chicken', label: 'Biryani with Chicken' },
+  { itemId: 'biryani_chicken', label: 'Biryani with Chicken' },
   { itemId: 'biryani_veg', label: 'Biryani Vegetarian' },
   { itemId: 'kebab_chicken', label: 'Chicken Kebab' },
   { itemId: 'samosa', label: 'Samosa' },
@@ -11,7 +11,7 @@ const MENU_ITEMS = [
 ]
 
 export default function OrderForm({ onSubmit, disabled }) {
-  const [itemId, setItemId] = useState('biryanwith_chicken')
+  const [itemId, setItemId] = useState('biryani_chicken')
   const [quantity, setQuantity] = useState(1)
   const [loading, setLoading] = useState(false)
 

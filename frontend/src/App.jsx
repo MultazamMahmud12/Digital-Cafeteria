@@ -66,7 +66,7 @@ function App() {
         <Routes>
           <Route path="/" element={token ? <Navigate to="/student" /> : <LoginPage />} />
           <Route path="/student" element={token ? <StudentDashboard /> : <Navigate to="/" />} />
-          <Route path="/admin" element={token ? <AdminDashboard /> : <Navigate to="/" />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>

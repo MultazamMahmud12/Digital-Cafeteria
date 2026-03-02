@@ -149,6 +149,16 @@ export default function LoginPage() {
               </button>
             </p>
           </div>
+
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <button
+              onClick={() => navigate('/admin')}
+              disabled={loading}
+              className="w-full bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              Admin Dashboard
+            </button>
+          </div>
         </div>
       </div>
     </div>

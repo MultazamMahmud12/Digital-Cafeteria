@@ -103,7 +103,7 @@ services:
       ENABLE_CHAOS: "true"
     depends_on:
       mongodb:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
