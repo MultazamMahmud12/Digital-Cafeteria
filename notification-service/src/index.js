@@ -107,12 +107,14 @@ async function handleOrderEvent(msg, routingKey) {
   try {
     payload = JSON.parse(msg.content.toString('utf8'));
   } catch (error) {
+    console.error(`[${nowIso()}] ❌ Failed to parse event message`);
     metrics.events_failed_total += 1;
     return;
   }
 
   const orderId = payload && payload.orderId;
   if (typeof orderId !== 'string' || orderId.trim() === '') {
+    console.error(`[${nowIso()}] ❌ Invalid orderId in event`);
     metrics.events_failed_total += 1;
     return;
   }
@@ -123,10 +125,28 @@ async function handleOrderEvent(msg, routingKey) {
   }
 
   if (!shouldAdvanceStatus(orderId, incomingStatus)) {
+    console.log(`[${nowIso()}] ⚠️  Order ${orderId}: Status ${incomingStatus} not advancing (already at ${latestStatus.get(orderId) || 'PENDING'})`);
     return;
   }
 
+  // Get previous status for transition logging
+  const previousStatus = latestStatus.get(orderId) || 'PENDING';
+  
+  // Map status to emoji
+  const statusEmoji = {
+    'PENDING': '🕒',
+    'STOCK_VERIFIED': '✅',
+    'IN_KITCHEN': '👨‍🍳',
+    'READY': '🎉'
+  };
+  
+  const emoji = statusEmoji[incomingStatus] || '📢';
+  console.log(`[${nowIso()}] ${emoji} Order ${orderId}: ${previousStatus} → ${incomingStatus}`);
   latestStatus.set(orderId, incomingStatus);
+  
+  const subscriberCount = Array.from(wsSubscriptions.entries()).filter(([_, subOrderId]) => subOrderId === orderId).length;
+  console.log(`[${nowIso()}] 📤 Broadcasting to ${subscriberCount} WebSocket subscriber(s) for order ${orderId}`);
+  
   pushToSubscribers(orderId, incomingStatus, nowIso());
 
   metrics.events_forwarded_total += 1;
@@ -200,10 +220,11 @@ async function setupRabbit() {
 async function connectRabbitWithRetry() {
   try {
     await setupRabbit();
-    console.log('Connected to RabbitMQ');
+    console.log(`[${nowIso()}] ✅ Connected to RabbitMQ successfully`);
+    console.log(`[${nowIso()}] 🎧 Listening for order events on queue: ${RABBITMQ_NOTIFY_QUEUE}`);
   } catch (error) {
     rabbitConnected = false;
-    console.error('RabbitMQ connect failed:', error.message);
+    console.error(`[${nowIso()}] ❌ RabbitMQ connect failed:`, error.message);
     scheduleReconnect();
   }
 }
@@ -283,6 +304,8 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 wsServer.on('connection', (ws) => {
+  console.log(`[${nowIso()}] 🔌 WebSocket client connected (${wsServer.clients.size} total clients)`);
+  
   ws.on('message', (data) => {
     let message;
     try {
@@ -297,12 +320,24 @@ wsServer.on('connection', (ws) => {
 
     const orderId = message.orderId;
     wsSubscriptions.set(ws, orderId);
+    console.log(`[${nowIso()}] 📝 Client subscribed to order: ${orderId}`);
 
     const replayStatus = latestStatus.get(orderId);
     if (!replayStatus) {
+      console.log(`[${nowIso()}] 📭 No status to replay for order ${orderId} (first subscription)`);
       return;
     }
 
+    // Map status to emoji for replay
+    const statusEmoji = {
+      'PENDING': '🕒',
+      'STOCK_VERIFIED': '✅',
+      'IN_KITCHEN': '👨‍🍳',
+      'READY': '🎉'
+    };
+    const emoji = statusEmoji[replayStatus] || '📢';
+    
+    console.log(`[${nowIso()}] ${emoji} Replaying status for order ${orderId}: ${replayStatus}`);
     try {
       ws.send(
         JSON.stringify({
@@ -319,7 +354,9 @@ wsServer.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    const orderId = wsSubscriptions.get(ws);
     wsSubscriptions.delete(ws);
+    console.log(`[${nowIso()}] 🔌 WebSocket client disconnected${orderId ? ` (was subscribed to ${orderId})` : ''} (${wsServer.clients.size} remaining)`);
   });
 
   ws.on('error', () => {

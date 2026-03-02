@@ -26,39 +26,110 @@ docker compose ps
    Invoke-RestMethod -Method Post -Uri http://localhost:8084/chaos/kill
    ```
 
-4. **Observe**:
-   - Admin Dashboard shows "Notification service is restarting..."
-   - Student Dashboard shows "Notification service restarting... reconnecting..."
-   - Order processing continues (Kitchen still processes)
-   - After ~2-3 seconds, notification service auto-restarts
-   - Admin Dashboard shows "✅ Notification service recovered"
+4. **Observe** (Service Stays Down - No Auto-Restart):
+   - Admin Dashboard shows notification service as "Unhealthy" (red)
+   - Student Dashboard shows "Notification service down... reconnecting..."
+   - **Service stays stopped** - this proves resilience!
+   - You can take your time demonstrating to judges
+
+5. **PROVE Order Processing Continues** (While Notification is Down):
+   
+   **Option A: Place a NEW order while service is down**
+   ```powershell
+   # In one terminal, watch kitchen logs
+   docker compose logs -f kitchen-service
+   
+   # In another terminal, verify notification is DOWN
+   docker ps -a | Select-String notification-service
+   # Should show "Exited"
+   ```
+   
+   Now place an order from Student Dashboard:
+   - ✅ Order is **accepted immediately** (stock service works)
+   - ✅ **Kitchen logs show** order received and processing
+   - ✅ Order status changes: Pending → Verified → Cooking → Ready
+   - ❌ **Only notifications are missing** (WebSocket down)
+   
+   **What to point out to judges:**
+   ```powershell
+   # Check kitchen is still processing
+   docker compose logs --tail=20 kitchen-service
+   # You'll see:
+   # "📥 Received order ABC123 from queue"
+   # "👨‍🍳 Order ABC123 moved to kitchen (status: IN_KITCHEN)"
+   # "🔥 Cooking order ABC123... (5234ms)"
+   # "✅ Order ABC123 is ready for pickup!"
+   
+   # Check RabbitMQ - messages flowing normally
+   docker compose exec rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+   # kitchen.q shows messages being processed (messages_unacknowledged = 0)
+   ```
+
+   **Option B: Use an existing order's logs**
+   ```powershell
+   # Show the order was placed BEFORE notification died
+   # Kitchen still processed it after notification went down
+   docker compose logs kitchen-service | Select-String "Order.*processing"
+   docker compose logs kitchen-service | Select-String "ready"
+   ```
+
+6. **Key Proof Points to Show Judges**:
+   
+   ```powershell
+   # 1. Notification service is DOWN
+   docker ps -a | Select-String notification-service
+   # Shows: "Exited (137)" or "Exited (143)"
+   
+   # 2. Kitchen service is UP and working
+   docker ps | Select-String kitchen-service
+   # Shows: "Up X seconds"
+   
+   # 3. Kitchen processed orders (check recent logs)
+   docker compose logs --tail=30 kitchen-service
+   # Look for: 
+   # "📥 Received order <ID> from queue"
+   # "✅ Order <ID> is ready for pickup!"
+   
+   # 4. RabbitMQ queues are flowing
+   docker compose exec rabbitmq rabbitmqctl list_queues
+   # Shows messages in kitchen.q being consumed
+   
+   # 5. Gateway is still accepting orders
+   docker compose logs --tail=20 gateway-service
+   # Shows: "Order placed successfully"
+   ```
+
+   **Why this proves resilience:**
+   - ✅ Critical path (Order → Stock → Kitchen) still works
+   - ✅ Only notification delivery is affected
+   - ✅ System degrades gracefully (no cascading failures)
+   - ✅ Orders don't get lost or stuck
+
+7. **Manually Restart Service** (When Ready to Show Recovery):
+   ```powershell
+   # Restart service
+   docker start notification-service
+   
+   # Watch logs to see recovery
+   docker logs -f notification-service
+   ```
+
+8. **Observe Recovery**:
+   - Service starts accepting connections immediately
+   - Admin Dashboard shows "✅ Notification service recovered" (green)
    - Student WebSocket auto-reconnects
    - Status updates resume
 
-5. **Prove Auto-Restart**:
+9. **Verify Manual Restart**:
    ```powershell
-   # Check restart count (should increment)
-   docker inspect notification-service --format='{{.RestartCount}}'
+   # Check container is running
+   docker ps | Select-String notification-service
    
-   # Check uptime (resets after restart)
+   # Check uptime (shows "Up X seconds" since manual restart)
    docker compose ps notification-service
    
-   # View restart in logs
-   docker compose logs --tail=50 notification-service
-
-
-   OR ,
-   # Watch logs live (shows restart happening)
-    docker compose logs -f notification-service
-
-    # In another terminal, kill it
-    Invoke-RestMethod -Method Post -Uri http://localhost:8084/chaos/kill
-
-    # Check restart count (increments each restart)
-    docker inspect notification-service --format='{{.RestartCount}}'
-
-    # Check uptime (resets after restart)   
-    docker compose ps notification-service
+   # View startup logs
+   docker compose logs --tail=30 notification-service
    ```
 
 ---
@@ -76,22 +147,82 @@ docker compose ps
    Invoke-RestMethod -Method Post -Uri http://localhost:8083/chaos/kill
    ```
 
-3. **Observe**:
-   - Order is accepted immediately (<2s response)
-   - Stock is deducted
-   - RabbitMQ holds the message in `kitchen.q`
-   - Kitchen service auto-restarts (~2-3s)
-   - Kitchen picks up queued message
+3. **Observe** (Service Stays Down):
+   
+   **Where to look for each proof:**
+   
+   ```powershell
+   # 1. ORDER ACCEPTED - Gateway logs
+   docker compose logs --tail=10 gateway-service
+   # Look for: "Order placed successfully" or status 201
+   ```
+   
+   ```powershell
+   # 2. STOCK DEDUCTED - Stock service logs
+   docker compose logs --tail=10 stock-service
+   # Look for: "Stock deducted successfully" or "remainingStock: X"
+   ```
+   
+   ```powershell
+   # 3. MESSAGE IN QUEUE - RabbitMQ status
+   docker compose exec rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+   # Look for: kitchen.q with messages_ready > 0 (message waiting!)
+   ```
+   
+   ```powershell
+   # 4. KITCHEN IS DOWN - Container status
+   docker ps -a | Select-String kitchen-service
+   # Shows: "Exited (137)" - service is DOWN but message is safe in queue!
+   ```
+   
+   **Summary of observations:**
+   - ✅ Order is accepted immediately (<2s response) - **Gateway logs**
+   - ✅ Stock is deducted - **Stock service logs**
+   - ✅ RabbitMQ holds the message in `kitchen.q` (durable queue!) - **RabbitMQ queue status**
+   - ✅ **Kitchen service stays stopped** - message waits in queue - **docker ps -a**
+   - ✅ This proves message durability!
+
+4. **Manually Restart Kitchen** (When Ready):
+   ```powershell
+   # Restart service
+   docker start kitchen-service
+   
+   # Watch it process the queued message
+   docker logs -f kitchen-service
+   ```
+   
+   **What you'll see in kitchen logs:**
+   ```
+   [2026-03-02T12:52:01.255Z] ✅ Connected to RabbitMQ successfully
+   [2026-03-02T12:52:01.256Z] 🎧 Listening for orders on queue: kitchen.q
+   [2026-03-02T12:52:01.300Z] 📥 Received order ABC123 from queue  <-- THE WAITING MESSAGE!
+   [2026-03-02T12:52:01.301Z] 👨‍🍳 Order ABC123 moved to kitchen (status: IN_KITCHEN)
+   [2026-03-02T12:52:01.302Z] 🔥 Cooking order ABC123... (4521ms)
+   [2026-03-02T12:52:05.823Z] ✅ Order ABC123 is ready for pickup!
+   ```
+
+5. **Observe Recovery**:
+   - Kitchen service starts immediately
+   - Kitchen picks up queued message from RabbitMQ (**see logs above!**)
    - Order processing completes
    - Status updates to READY
-
-4. **Prove Queue Persistence**:
+   
+   **Notification service logs will also show:**
    ```powershell
-   # Check RabbitMQ queue has messages
+   docker compose logs --tail=10 notification-service
+   # Look for:
+   # "�‍🍳 Order ABC123: STOCK_VERIFIED → IN_KITCHEN"
+   # "🎉 Order ABC123: IN_KITCHEN → READY"
+   # "📤 Broadcasting to X WebSocket subscriber(s) for order ABC123"
+   ```
+
+6. **Prove Queue Persistence**:
+   ```powershell
+   # Before restart: Check RabbitMQ queue has messages waiting
    docker compose exec rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
    
-   # Check restart count
-   docker inspect kitchen-service --format='{{.RestartCount}}'
+   # After restart: Verify kitchen is running
+   docker ps | Select-String kitchen-service
    ```
 
 ---
@@ -106,11 +237,61 @@ docker compose ps
    Invoke-RestMethod -Method Post -Uri http://localhost:8084/chaos/kill
    ```
 
-3. **Observe**:
-   - Order still accepted
-   - Both services restart automatically
+3. **Observe** (Both Services Stay Down):
+   - Order still accepted (resilience!)
+   - Both services stay stopped
+   - RabbitMQ queues hold messages
+   - Student sees "services down" but order was accepted
+   
+   **WHERE TO OBSERVE:**
+   ```bash
+   # Verify order was accepted
+   docker compose logs --tail=5 gateway-service
+   # Look for: "Order placed successfully"
+   
+   # Verify services are down
+   Show from docker desktop 
+   # Look for: No running containers (or status shows "Exited")
+   
+   # Check RabbitMQ queues
+   docker compose exec rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+   # Look for: kitchen.q and notification.q with messages_ready > 0
+   ```
+
+4. **Manually Restart Both Services** (When Ready):
+   ```powershell
+   # Restart kitchen (processes queued order)
+   docker start kitchen-service
+   
+   # Restart notification (delivers status updates)
+   docker start notification-service
+   
+   # Watch both services recover
+   docker compose logs -f kitchen-service notification-service
+   ```
+
+5. **Observe Recovery**:
+   - Both services start immediately
    - Order processing completes after recovery
+   
+   **WHERE TO OBSERVE:**
+   ```bash
+   # Watch kitchen process queued orders
+   docker compose logs --tail=20 kitchen-service
+   # Look for:
+   # [TIMESTAMP] 📥 Received order <ID> from queue
+   # [TIMESTAMP] 👨‍🍳 Order <ID> moved to kitchen (status: IN_KITCHEN)
+   # [TIMESTAMP] ✅ Order <ID> is ready for pickup!
+   
+   # Watch notification deliver status updates
+   docker compose logs --tail=10 notification-service
+   # Look for:
+   # [TIMESTAMP] �‍🍳 Order <ID>: STOCK_VERIFIED → IN_KITCHEN
+   # [TIMESTAMP] 🎉 Order <ID>: IN_KITCHEN → READY
+   # [TIMESTAMP] 📤 Broadcasting to X WebSocket subscriber(s) for order <ID>
+   ```
    - All status updates delivered
+   - WebSocket reconnects automatically
 
 ---
 
@@ -131,10 +312,10 @@ When an item runs out of stock, Redis caches `OUT_OF_STOCK` status. The **second
 # Clear Redis cache for fresh demo
 docker compose exec redis redis-cli FLUSHALL
 
-# Verify Biryani Vegetarian has stock = 1
-docker compose exec mongodb mongosh digital_cafeteria_stock --eval "db.fooditems.find({name: /biryani.*veg/i}, {name:1, stock:1})"
+# Verify Biryani Vegetarian has stock = 1 (MongoDB Atlas)
+docker compose exec stock-service node -e "const mongoose = require('mongoose'); mongoose.connect(process.env.MONGO_URI).then(async () => { const doc = await mongoose.connection.db.collection('fooditems').findOne({name: /biryani.*veg/i}); console.log('Stock:', doc.stock, '| Name:', doc.name); process.exit(0); });"
 ```
-**Expected**: `{ name: 'Biryani_Veg', stock: 1 }`
+**Expected**: `Stock: 1 | Name: biryani_veg`
 
 ```powershell
 # Start watching Gateway logs (keep this terminal open)
@@ -245,34 +426,35 @@ docker compose exec redis redis-cli INFO memory | Select-String "used_memory_hum
 # Clear Redis cache
 docker compose exec redis redis-cli FLUSHALL
 
-# Reset Biryani_Veg stock to 1
-docker compose exec mongodb mongosh digital_cafeteria_stock --eval "db.fooditems.updateOne({name: /biryani.*veg/i}, {\$set: {stock: 1}})"
+# Reset Biryani_Veg stock to 1 (MongoDB Atlas)
+docker compose exec stock-service node -e "const mongoose = require('mongoose'); mongoose.connect(process.env.MONGO_URI).then(async () => { await mongoose.connection.db.collection('fooditems').updateOne({name: /biryani.*veg/i}, {'\$set': {stock: 1}}); console.log('Stock reset to 1'); process.exit(0); });"
 ```
 
 ---
 
 ## Key Observations for Judges
 
-### ✅ Auto-Restart Proof
-- **Docker Status**: Container never shows "Exited" - restarts too fast
-- **Restart Count**: `docker inspect <service> --format='{{.RestartCount}}'`
-- **Uptime Resets**: Check container "Status" - shows "Up X seconds" after restart
-- **Logs**: Show process crash + restart messages
+### ✅ Manual Restart Control
+- **No Auto-Restart**: Services stay down when killed (full control for demo)
+- **Instant Startup**: Services start immediately after `docker start`
+- **Full Demo Control**: Take your time showing resilience before restarting
 
 ### ✅ Resilience Features
 1. **Redis Fast Reject**: Out-of-stock items rejected in <10ms (90% faster than DB query)
-2. **Auto-Restart**: Services recover in ~2-3 seconds using Docker restart policies
+2. **Service Independence**: Orders accepted even when downstream services are down
 3. **Async Processing**: Kitchen decoupled via RabbitMQ (3-7s cooking time)
-4. **Durable Queues**: Messages survive service restarts
+4. **Durable Queues**: Messages survive service restarts (no data loss)
 5. **WebSocket Auto-Reconnect**: UI recovers without page refresh
 6. **Health Monitoring**: Real-time service status in Admin Dashboard
 7. **Database Protection**: Redis cache prevents DB overload during high traffic
+8. **Manual Control**: Full control over service restarts for demonstration
 
-### ✅ Why "Stopped" Never Shows
-- Compose policy: `restart: unless-stopped`
-- Restart happens in ~1-2 seconds
-- Docker Desktop polls status every few seconds
-- By the time UI updates, container is running again
+### ✅ Manual Restart Workflow
+- **Kill**: `Invoke-RestMethod -Method Post -Uri http://localhost:PORT/chaos/kill`
+- **Verify Stopped**: `docker ps -a` (shows "Exited" status)
+- **Demo Resilience**: Take your time - service stays down!
+- **Restart**: `docker start <service-name>` (starts immediately)
+- **Verify Running**: `docker ps` (shows "Up X seconds")
 
 ---
 
@@ -288,22 +470,50 @@ docker compose logs -f
 # View specific service
 docker compose logs -f notification-service
 
-# Kill a service
+# ──── KILL SERVICES ────
+# Kill notification service
 Invoke-RestMethod -Method Post -Uri http://localhost:8084/chaos/kill
 
-# Check restart count
-docker inspect notification-service --format='{{.RestartCount}}'
+# Kill kitchen service
+Invoke-RestMethod -Method Post -Uri http://localhost:8083/chaos/kill
 
-# Check queue status
-docker compose exec rabbitmq rabbitmqctl list_queues
+# Kill stock service (for cache demo)
+Invoke-RestMethod -Method Post -Uri http://localhost:8082/chaos/kill
 
-# Stop without restarting (for comparison)
-docker compose stop notification-service
+# ──── CHECK SERVICE STATUS ────
+# List all containers (including stopped)
+docker ps -a
 
-# Start again
-docker compose start notification-service
+# Check specific service status
+docker ps | Select-String notification-service
 
-# Rebuild everything
+# ──── MANUALLY START SERVICES ────
+# Start notification service
+docker start notification-service
+
+# Start kitchen service
+docker start kitchen-service
+
+# Start stock service
+docker start stock-service
+
+# Start all stopped services at once
+docker compose start
+
+# ──── WATCH SERVICE LOGS ────
+# Watch service logs in real-time
+docker logs -f notification-service
+
+# ──── RABBITMQ QUEUE STATUS ────
+# Check queue status (see messages waiting while service is down)
+docker compose exec rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+
+# ──── REDIS CACHE STATUS ────
+# Check cached stock status
+docker compose exec redis redis-cli KEYS "stock_status_*"
+docker compose exec redis redis-cli GET "stock_status_biryani_veg"
+
+# ──── REBUILD EVERYTHING ────
 docker compose down
 docker compose build --no-cache
 docker compose up -d
