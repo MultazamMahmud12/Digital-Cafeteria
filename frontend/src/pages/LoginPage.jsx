@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
-  
+
   const { handleLogin, config } = useContext(AuthContext)
   const navigate = useNavigate()
 
@@ -149,10 +149,6 @@ export default function LoginPage() {
               </button>
             </p>
           </div>
-
-          <p className="text-center text-xs text-slate-500 mt-6">
-            Demo credentials: any student ID and password
-          </p>
         </div>
       </div>
     </div>

@@ -23,7 +23,7 @@ RUN npm install --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
-EXPOSE 4002
+EXPOSE 8082
 
 USER node
 

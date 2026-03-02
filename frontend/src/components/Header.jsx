@@ -15,7 +15,7 @@ export default function Header({ onLogout, onAdminClick, isAdmin = false }) {
         </div>
 
         <div className="flex items-center gap-2">
-          {!isAdmin && onAdminClick && (
+          {/* {!isAdmin && onAdminClick && (
             <button
               onClick={onAdminClick}
               className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
@@ -24,7 +24,7 @@ export default function Header({ onLogout, onAdminClick, isAdmin = false }) {
               <Settings className="w-4 h-4" />
               <span className="text-sm font-medium">Admin</span>
             </button>
-          )}
+          )} */}
 
           <button
             onClick={onLogout}
