@@ -43,7 +43,7 @@ docker compose ps
    docker ps -a | Select-String notification-service
    # Should show "Exited"
    ```
-   
+   ///say this 
    Now place an order from Student Dashboard:
    - ✅ Order is **accepted immediately** (stock service works)
    - ✅ **Kitchen logs show** order received and processing
@@ -427,7 +427,7 @@ docker compose exec redis redis-cli INFO memory | Select-String "used_memory_hum
 docker compose exec redis redis-cli FLUSHALL
 
 # Reset Biryani_Veg stock to 1 (MongoDB Atlas)
-docker compose exec stock-service node -e "const mongoose = require('mongoose'); mongoose.connect(process.env.MONGO_URI).then(async () => { await mongoose.connection.db.collection('fooditems').updateOne({name: /biryani.*veg/i}, {'\$set': {stock: 1}}); console.log('Stock reset to 1'); process.exit(0); });"
+docker compose exec stock-service node -e "const mongoose = require('mongoose'); mongoose.connect(process.env.MONGO_URI).then(async () => { await mongoose.connection.db.collection('fooditems').updateOne({name: /biryani.*veg/i}, {`$set`: {stock: 1}}); console.log('Stock reset to 1'); process.exit(0); });"
 ```
 
 ---
