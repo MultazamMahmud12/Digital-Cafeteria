@@ -350,14 +350,6 @@ async function pollQueues() {
   }
 }
 
-    if (service.name === 'Gateway') {
-      updateGatewayAlert(metrics);
-    }
-  } catch (error) {
-    metricsPre.textContent = JSON.stringify({ error: 'metrics unavailable' }, null, 2);
-  }
-}
-
 
 async function pollAll() {
   const views = Array.from(serviceViews.values());

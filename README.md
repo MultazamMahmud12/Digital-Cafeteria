@@ -2,9 +2,7 @@
 
 Microservices-based cafeteria platform with authentication, order intake, inventory control, kitchen processing, and real-time notifications.
 
-## Services Overview
-
-### Business Services
+## Main Services
 
 | Service | Folder | Container | Internal Port | Host Port | Purpose |
 |---|---|---|---:|---:|---|
@@ -15,7 +13,12 @@ Microservices-based cafeteria platform with authentication, order intake, invent
 | Notification Service | `notification-service` | `notification-service` | 8084 | 8084 | Consumes events and pushes real-time updates (WebSocket) |
 | Frontend | `frontend` | `frontend` | 8085 | 8085 | Student/Admin UI and dashboard |
 
-### Infrastructure Services
+## Bonus Challenges Status
+
+- ✅ **Visual Alerts**: Implemented in Admin Dashboard (alerts when Gateway average latency exceeds 1000ms over ~30 seconds).
+- ✅ **Rate Limiting**: Implemented in Identity Service (limits a Student ID to 3 login attempts per minute).
+
+## Infrastructure Services
 
 | Service | Container | Host Port(s) | Purpose |
 |---|---|---|---|
