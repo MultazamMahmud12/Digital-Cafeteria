@@ -1,11 +1,13 @@
 import { useState, useContext, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext'
-import { checkServiceHealth, killService } from '../utils/api'
+import { checkServiceHealth, killService, startService } from '../utils/api'
 import Header from '../components/Header'
 import HealthGrid from '../components/HealthGrid'
 import MetricsPanel from '../components/MetricsPanel'
-import { AlertCircle, RefreshCw, Zap } from 'lucide-react'
+import LogsViewer from '../components/LogsViewer'
+import QueueMonitor from '../components/QueueMonitor'
+import { AlertCircle, RefreshCw, Zap, Play } from 'lucide-react'
 
 export default function AdminDashboard() {
   const [health, setHealth] = useState({})
@@ -14,6 +16,7 @@ export default function AdminDashboard() {
   const [selectedService, setSelectedService] = useState(null)
   const [chaosLoading, setChaosLoading] = useState(false)
   const [chaosConfirm, setChaosConfirm] = useState(false)
+  const [startLoading, setStartLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
   const { handleLogout, config } = useContext(AuthContext)
@@ -87,7 +90,7 @@ export default function AdminDashboard() {
       if (!service) throw new Error('Service not found')
 
       await killService(service.url)
-      setErrorMessage(`${selectedService} has been terminated. Observing system resilience...`)
+      setErrorMessage(`⚡ ${selectedService} has been terminated. Observing system resilience...`)
       
       // Refresh health after a moment
       setTimeout(() => {
@@ -98,6 +101,24 @@ export default function AdminDashboard() {
     } finally {
       setChaosLoading(false)
       setChaosConfirm(false)
+    }
+  }
+
+  const handleStartService = async (serviceName) => {
+    setStartLoading(true)
+    setErrorMessage('')
+    try {
+      await startService(serviceName)
+      setErrorMessage(`🚀 ${serviceName} is starting... Waiting for health check...`)
+      
+      // Refresh health after a moment
+      setTimeout(() => {
+        checkAllHealth()
+      }, 3000)
+    } catch (err) {
+      setErrorMessage(`❌ Failed to start ${serviceName}: ${err.message}`)
+    } finally {
+      setStartLoading(false)
     }
   }
 
@@ -154,30 +175,46 @@ export default function AdminDashboard() {
           {/* Metrics Panel */}
           <MetricsPanel services={servicesList} />
 
-          {/* Chaos Toggle Section */}
+          {/* RabbitMQ Queue Monitor */}
+          <QueueMonitor />
+
+          {/* Chaos Control Section */}
           <div className="bg-white rounded-lg shadow">
             <div className="border-b border-slate-200 p-6 bg-gradient-to-r from-red-50 to-orange-50">
               <div className="flex items-center gap-2 mb-2">
                 <Zap className="w-5 h-5 text-orange-600" />
                 <h3 className="text-lg font-bold text-slate-900">Chaos Engineering</h3>
               </div>
-              <p className="text-sm text-slate-600">Manually terminate services to observe system resilience</p>
+              <p className="text-sm text-slate-600">Manually terminate or restart services to observe system resilience</p>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-4">
                 {servicesList.map(service => (
-                  <button
-                    key={service.name}
-                    onClick={() => handleChaosToggle(service.name)}
-                    disabled={chaosLoading}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg transition-colors text-sm font-medium"
-                  >
-                    Kill {service.name}
-                  </button>
+                  <div key={service.name} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                    <span className="font-medium text-slate-900 min-w-[120px]">{service.name}</span>
+                    <button
+                      onClick={() => handleChaosToggle(service.name)}
+                      disabled={chaosLoading || startLoading}
+                      className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg transition-colors text-sm font-medium"
+                    >
+                      Kill {service.name}
+                    </button>
+                    <button
+                      onClick={() => handleStartService(service.name)}
+                      disabled={chaosLoading || startLoading}
+                      className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4" />
+                      Start {service.name}
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
+
+          {/* Logs Viewer */}
+          <LogsViewer services={servicesList} />
         </div>
       </div>
 

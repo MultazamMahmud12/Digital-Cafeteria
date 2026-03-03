@@ -138,7 +138,7 @@ Build a **resilient microservices platform** that:
 ✅ Services can be killed and restarted without losing orders (RabbitMQ durability)  
 ✅ Admin dashboard shows real-time service health  
 ✅ All unit tests pass in CI pipeline  
-✅ System starts with single `docker compose up -d` command
+✅ System starts with single `docker compose up --build` command
 
 ---
 

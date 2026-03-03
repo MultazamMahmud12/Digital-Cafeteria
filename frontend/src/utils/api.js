@@ -68,9 +68,9 @@ export const checkServiceHealth = async (serviceUrl) => {
   }
 }
 
-export const getMetrics = async (serviceUrl) => {
+export const getMetrics = async (metricsUrl) => {
   try {
-    const response = await axios.get(`${serviceUrl}/metrics`, {
+    const response = await axios.get(metricsUrl, {
       timeout: 5000
     })
     return response.data
@@ -85,5 +85,32 @@ export const killService = async (serviceUrl) => {
     return response.data
   } catch (error) {
     throw new Error(error.response?.data?.message || 'Failed to trigger chaos')
+  }
+}
+
+export const startService = async (serviceName) => {
+  try {
+    const response = await axios.post(`/api/docker/start/${serviceName}`)
+    return response.data
+  } catch (error) {
+    throw new Error(error.response?.data?.error || 'Failed to start service')
+  }
+}
+
+export const getServiceLogs = async (serviceName, tail = 50) => {
+  try {
+    const response = await axios.get(`/api/docker/logs/${serviceName}?tail=${tail}`)
+    return response.data
+  } catch (error) {
+    return { logs: '', error: error.message }
+  }
+}
+
+export const getRabbitMQQueues = async () => {
+  try {
+    const response = await axios.get('/api/rabbitmq/queues')
+    return response.data
+  } catch (error) {
+    return { queues: [], error: error.message }
   }
 }

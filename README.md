@@ -4,7 +4,7 @@ A resilient, cloud-native cafeteria management system built with microservices a
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 - **Docker Desktop** (24.x+)
