@@ -129,10 +129,6 @@ app.get('/api/rabbitmq/queues', async (req, res) => {
 
 // Serve React build
 const distPath = path.join(__dirname, '..', 'dist');
-const publicPath = path.join(__dirname, '..', 'public');
-
-// Serve public files (like admin.html, admin.js, styles.css)
-app.use(express.static(publicPath));
 
 // Serve React build
 app.use(express.static(distPath));

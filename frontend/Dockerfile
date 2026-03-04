@@ -20,7 +20,6 @@ COPY package.json package-lock.json ./
 RUN npm install --omit=dev
 
 COPY src ./src
-COPY public ./public
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 8085
