@@ -1,6 +1,6 @@
 # frontend
 
-Minimal Express frontend for the cafeteria microservice demo.
+React + Express frontend for the cafeteria microservice demo.
 
 ## Run locally
 
@@ -18,8 +18,8 @@ npm start
 
 3. Open pages:
 
-- Student: `http://localhost:8085/student.html`
-- Admin: `http://localhost:8085/admin.html`
+- Student: `http://localhost:8085/student`
+- Admin: `http://localhost:8085/admin`
 
 ## Runtime config endpoint
 

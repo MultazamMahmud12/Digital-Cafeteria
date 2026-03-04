@@ -1,7 +1,7 @@
-import { useState, useContext, useEffect } from 'react'
+import { useState, useContext, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext'
-import { checkServiceHealth, killService, startService } from '../utils/api'
+import { checkServiceHealth, killService, startService, getMetrics } from '../utils/api'
 import Header from '../components/Header'
 import HealthGrid from '../components/HealthGrid'
 import MetricsPanel from '../components/MetricsPanel'
@@ -10,6 +10,9 @@ import QueueMonitor from '../components/QueueMonitor'
 import { AlertCircle, RefreshCw, Zap, Play } from 'lucide-react'
 
 export default function AdminDashboard() {
+  const GATEWAY_ALERT_THRESHOLD_MS = 1000
+  const GATEWAY_ALERT_WINDOW_MS = 30000
+
   const [health, setHealth] = useState({})
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -18,17 +21,23 @@ export default function AdminDashboard() {
   const [chaosConfirm, setChaosConfirm] = useState(false)
   const [startLoading, setStartLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [gatewayAlertVisible, setGatewayAlertVisible] = useState(false)
+
+  const gatewaySamplesRef = useRef([])
 
   const { handleLogout, config } = useContext(AuthContext)
   const navigate = useNavigate()
 
-  const servicesList = [
-    { name: 'Identity', url: config?.identityBaseUrl },
-    { name: 'Gateway', url: config?.gatewayBaseUrl },
-    { name: 'Stock', url: config?.stockBaseUrl || config?.services?.find(s => s.name === 'Stock')?.url },
-    { name: 'Kitchen', url: config?.kitchenBaseUrl || config?.services?.find(s => s.name === 'Kitchen')?.url },
-    { name: 'Notification', url: config?.notificationBaseUrl || config?.services?.find(s => s.name === 'Notification')?.url }
-  ].filter(s => s.url)
+  const servicesList = useMemo(
+    () => [
+      { name: 'Identity', url: config?.identityBaseUrl },
+      { name: 'Gateway', url: config?.gatewayBaseUrl },
+      { name: 'Stock', url: config?.stockBaseUrl || config?.services?.find(s => s.name === 'Stock')?.url },
+      { name: 'Kitchen', url: config?.kitchenBaseUrl || config?.services?.find(s => s.name === 'Kitchen')?.url },
+      { name: 'Notification', url: config?.notificationBaseUrl || config?.services?.find(s => s.name === 'Notification')?.url }
+    ].filter(s => s.url),
+    [config]
+  )
 
   const checkAllHealth = async () => {
     const currentHealth = { ...health } // Capture current state before checking
@@ -70,6 +79,51 @@ export default function AdminDashboard() {
     const interval = setInterval(checkAllHealth, 500) // Auto-refresh every 500ms to catch rapid restarts
     return () => clearInterval(interval)
   }, [config])
+
+  useEffect(() => {
+    const gatewayService = servicesList.find((service) => service.name === 'Gateway')
+
+    if (!gatewayService?.url) {
+      setGatewayAlertVisible(false)
+      gatewaySamplesRef.current = []
+      return
+    }
+
+    const pollGatewayLatency = async () => {
+      const now = Date.now()
+      const cutoff = now - GATEWAY_ALERT_WINDOW_MS
+      gatewaySamplesRef.current = gatewaySamplesRef.current.filter((entry) => entry.at >= cutoff)
+
+      const metricsUrl = `${gatewayService.url}/metrics/json`
+      const metrics = await getMetrics(metricsUrl)
+      const sample = Number(metrics?.avg_http_latency_ms)
+
+      if (!Number.isFinite(sample)) {
+        if (gatewaySamplesRef.current.length === 0) {
+          setGatewayAlertVisible(false)
+        }
+        return
+      }
+
+      gatewaySamplesRef.current.push({ at: now, value: sample })
+      gatewaySamplesRef.current = gatewaySamplesRef.current.filter((entry) => entry.at >= cutoff)
+
+      if (gatewaySamplesRef.current.length === 0) {
+        setGatewayAlertVisible(false)
+        return
+      }
+
+      const avgLatency =
+        gatewaySamplesRef.current.reduce((total, entry) => total + entry.value, 0) /
+        gatewaySamplesRef.current.length
+
+      setGatewayAlertVisible(avgLatency > GATEWAY_ALERT_THRESHOLD_MS)
+    }
+
+    pollGatewayLatency()
+    const interval = setInterval(pollGatewayLatency, 2000)
+    return () => clearInterval(interval)
+  }, [servicesList])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -157,6 +211,15 @@ export default function AdminDashboard() {
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
               <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700">{errorMessage}</p>
+            </div>
+          )}
+
+          {gatewayAlertVisible && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">
+                Gateway latency alert: average response time is above 1000ms over the last 30 seconds.
+              </p>
             </div>
           )}
 
