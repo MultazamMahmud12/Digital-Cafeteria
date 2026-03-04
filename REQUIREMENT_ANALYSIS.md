@@ -105,7 +105,6 @@ Build a **resilient microservices platform** that:
 |-----------|-------------|
 | **Automated Testing** | Every code push runs unit tests via GitHub Actions |
 | **Build Must Pass** | Tests must pass before code can merge |
-| **Test Coverage** | Target 80%+ code coverage for business logic |
 | **Test Cases Required** | Order validation, stock deduction, authentication, rate limiting |
 
 ---

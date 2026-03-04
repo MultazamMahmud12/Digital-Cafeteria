@@ -186,8 +186,7 @@ Kitchen Service UP → Processes all queued orders → Business continuity
 **What We Validate**:
 ```yaml
 ✅ Unit Tests (Jest): Order validation, stock deduction, auth middleware
-✅ Code Coverage: 80%+ requirement
-✅ Lint Checks: ESLint for code quality
+
 ✅ Build Verification: TypeScript compilation
 ```
 

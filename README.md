@@ -71,7 +71,7 @@ docker compose down
 3. Gateway validates token and checks stock/cache signals.
 4. Gateway publishes order event to RabbitMQ (`orders.x`).
 5. Kitchen and Notification services consume events asynchronously.
-6. Notification service pushes status updates to clients via WebSocket.
+6. Notification service pushes status updates in the frontend to clients via WebSocket.
 
 ## Environment Notes
 
